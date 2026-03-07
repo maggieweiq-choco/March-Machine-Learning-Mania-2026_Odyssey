@@ -1,154 +1,149 @@
-# March-Machine-Learning-Mania-2026_Odyssey
-## Data
+# NCAA March Madness 2026: Ensemble Learning for Tournament Outcome Prediction
+
+## Abstract
+
+This project develops a machine learning pipeline to predict the win probability of NCAA Men's and Women's Basketball Tournament matchups for the 2026 season. We construct a rich feature set from historical game data, train an ensemble of gradient boosting and support vector regression models under a leave-one-season-out cross-validation scheme, and apply spline-based probability calibration to produce well-formed probabilistic outputs.
+
+---
+
+## 1. Problem Formulation
+
+Given two teams $T_1$ and $T_2$, the task is to estimate $P(\text{T}_1 \text{ wins})$ for every possible first-round through championship matchup in the 2026 NCAA tournament. Predictions are evaluated using the Brier score on the held-out tournament games submitted to the Kaggle March Machine Learning Mania 2026 competition.
+
+---
+
+## 2. Data
+
+All data is sourced from the [Kaggle March Machine Learning Mania 2026](https://www.kaggle.com/competitions/march-machine-learning-mania-2026) competition dataset, covering both Men's (M) and Women's (W) tournaments.
+
+### 2.1 Game Results
 
 | File | Description |
 |---|---|
-| `MRegularSeasonDetailedResults.csv` | Men's regular season box scores |
-| `MNCAATourneyDetailedResults.csv` | Men's tournament results |
-| `MNCAATourneySeeds.csv` | Men's tournament seeds |
-| `WRegularSeasonDetailedResults.csv` | Women's regular season box scores |
-| `WNCAATourneyDetailedResults.csv` | Women's tournament results |
-| `WNCAATourneySeeds.csv` | Women's tournament seeds |
+| `MRegularSeasonDetailedResults.csv` | Men's regular season game results with box score stats (2003–2025) |
+| `WRegularSeasonDetailedResults.csv` | Women's regular season game results with box score stats |
+| `MNCAATourneyCompactResults.csv` | Men's tournament game results (2003–2025) |
+| `WNCAATourneyCompactResults.csv` | Women's tournament game results |
 
-Men's and women's data are combined into a single pipeline. Data from **2003 onward** is used for men's, **2010 onward** for women's.
+Each row encodes the winning team (`WTeamID`, `WScore`) and losing team (`LTeamID`, `LScore`), along with game location (`WLoc`: H/A/N) and day number within the season.
 
----
+### 2.2 Team Metadata
 
-## Data Preparation
-
-Each game is entered **twice** — once as `(T1=Winner, T2=Loser)` and once flipped. This symmetry ensures the model sees both perspectives, and `win=1` simply means T1 won.
-
-**Overtime normalization:** All box score stats are divided by `(40 + 5×OT) / 40` to rescale overtime games back to a standard 40-minute baseline.
-
----
-
-## Features
-
-### Easy — Seeding
-
-| Feature | Description |
+| File | Description |
 |---|---|
-| `men_women` | `1` = men's bracket, `0` = women's bracket |
-| `T1_seed` | T1's tournament seed (1 = best, 16 = worst) |
-| `T2_seed` | T2's tournament seed |
-| `Seed_diff` | `T2_seed − T1_seed` — positive means T1 is seeded higher |
+| `MTeams.csv` / `WTeams.csv` | Team IDs and names |
+| `MNCAATourneySeeds.csv` / `WNCAATourneySeeds.csv` | Tournament seeds per team per season (e.g. W01, X16) |
+| `MTeamCoaches.csv` | Head coach assignments per team per season, with first/last day coached |
+
+### 2.3 Third-Party Rankings
+
+| File | Description |
+|---|---|
+| `MMasseyOrdinals.csv` | Daily ratings from 30+ external ranking systems (e.g. RPI, KenPom, BPI) aggregated at end of regular season |
+
+Rankings are averaged across all available systems to produce a single `MasseyRank` per team per season.
+
+### 2.4 Submission Template
+
+| File | Description |
+|---|---|
+| `MSampleSubmissionStage2.csv` / `WSampleSubmissionStage2.csv` | All valid 2026 matchup IDs to predict |
+
+Each `ID` is formatted as `Season_LowerTeamID_HigherTeamID`.
 
 ---
 
-### Medium — Regular Season Averages
+## 3. Feature Engineering
 
-For each team, two perspectives are computed from regular season data:
+Features are computed at the team level from regular season data and then joined to each tournament matchup as a T1/T2 pair. To enforce permutation invariance, each training game is duplicated with T1 and T2 swapped, so the model must learn team-agnostic relationships.
 
-**Team's own per-game stats:**
-
-| Feature | Description |
-|---|---|
-| `T1_avg_Score` | Points scored per game |
-| `T1_avg_FGA` | Field goal attempts per game |
-| `T1_avg_OR` | Offensive rebounds per game |
-| `T1_avg_DR` | Defensive rebounds per game |
-| `T1_avg_Blk` | Blocks per game |
-| `T1_avg_PF` | Personal fouls per game |
-| `T1_avg_PointDiff` | Average scoring margin |
-
-**What opponents did *against* this team** (reflects defensive strength):
-
-| Feature | Description |
-|---|---|
-| `T1_avg_opponent_FGA` | Opponent shot attempts allowed per game |
-| `T1_avg_opponent_Blk` | Blocks opponents recorded vs this team |
-| `T1_avg_opponent_PF` | Fouls opponents committed against this team |
-
-> All 13 features above exist for both T1 and T2 (`T2_avg_*`).
-
----
-
-### Hard — Elo Ratings
-
-Elo is a running skill rating updated after every regular season game. All teams start at **1000**. Wins vs strong opponents gain more; losses to weak opponents lose more.
-
-expected_win  = 1 / (1 + 10^((opponent_elo − team_elo) / 400))
-elo_change    = 100 × (1 − expected_win)
-
-
-
-| Feature | Description |
-|---|---|
-| `T1_elo` | T1's Elo at end of regular season |
-| `T2_elo` | T2's Elo at end of regular season |
-| `elo_diff` | `T1_elo − T2_elo` — positive means T1 is stronger |
-
----
-
-### Hardest — GLM Quality Score
-
-A Generalized Linear Model is fit on regular season data with team dummy variables to estimate each team's **strength-of-schedule-adjusted** quality:
-
-PointDiff ~ -1 + T1_TeamID + T2_TeamID
-
-
-
-Each team gets a coefficient representing how much better or worse they perform than average, **after controlling for opponent strength**. Only tournament teams (and teams that beat a tournament team) are included to keep the regression tractable.
-
-| Feature | Description |
-|---|---|
-| `T1_quality` | T1's GLM-estimated adjusted strength |
-| `T2_quality` | T2's GLM-estimated adjusted strength |
-
----
-
-## Model — XGBoost
-
-**Target:** `PointDiff` (continuous regression, not binary). Predicting the margin gives richer signal than win/loss.
-
-**Hyperparameters:**
-
-| Parameter | Value | Effect |
+| Feature Group | Features | Description |
 |---|---|---|
-| `eta` | `0.0093` | Low learning rate for stability |
-| `num_boost_round` | `704` | Many rounds to compensate for low eta |
-| `max_depth` | `4` | Shallow trees to prevent overfitting |
-| `subsample` | `0.6` | 60% of rows sampled per tree |
-| `num_parallel_tree` | `2` | Random forest–style bagging per round |
-| `colsample_bynode` | `0.8` | 80% of features sampled per split |
-
-**Training strategy:** Leave-one-season-out cross-validation — one model trained per held-out season. Final predictions are an **ensemble average** across all season models.
-
----
-
-## Calibration — Spline
-
-XGBoost outputs a predicted point margin. To convert to a win probability:
-
-1. Clip predictions to `[−25, +25]`
-2. Fit a degree-5 `UnivariateSpline` mapping `predicted_margin → historical win rate` from out-of-fold data
-3. Clip final probabilities to `[0.01, 0.99]`
-
-This is more accurate than a sigmoid because the margin-to-probability relationship is empirically fit rather than assumed.
+| Massey Rankings | `T1_MasseyRank`, `T2_MasseyRank` | Mean end-of-season ranking across all Massey rating systems |
+| GLM Quality | `glm_quality_T1`, `glm_quality_T2` | Per-team offensive/defensive quality estimated by logistic regression on regular season point differentials |
+| Recent Performance | `T1_WinRatio14d`, `T2_WinRatio14d` | Win rate in the final 14 days of the regular season |
+| Adjusted Performance | `T1_awins`, `T2_awins` | Strength-of-schedule-adjusted win rate |
+| Coaching | `T1_coach_exp`, `T1_coach_winrate` | Cumulative coaching experience (seasons) and career tournament win rate |
+| Seeding | `T1_seed`, `T2_seed` | Tournament seed; seed differential as an additional feature |
+| Home/Away | `T1_Home`, `T2_Home` | Game location indicator: home (+1), away (−1), neutral (NaN) |
 
 ---
 
-## Submission
+## 4. Methodology
 
-For each matchup in `SampleSubmissionStage2.csv`:
+### 4.1 Cross-Validation
 
-1. All season models predict a point margin
-2. Predictions are **averaged** across all season models
-3. A **+10% confidence boost** is applied when `pred < 0.85`
-4. Six specific matchups are **manually overridden** with hardcoded probabilities
+A **leave-one-season-out** (LOSO) scheme is used for validation. For each held-out tournament year $t$, models are trained on all seasons $\{s : s \neq t\}$ and evaluated on the tournament games of season $t$. This mirrors the temporal structure of the prediction task and avoids look-ahead bias.
 
-Output file: `predictions.csv` with columns `ID`, `Pred`.
+### 4.2 Models
+
+Three regression models are trained per fold to predict the point differential (a continuous proxy for win probability):
+
+**XGBoost** with a custom Cauchy loss function:
+
+$$\mathcal{L}_{\text{Cauchy}}(r) = \log\left(1 + \left(\frac{r}{\delta}\right)^2\right)$$
+
+where $r$ is the residual and $\delta$ is a scale parameter. This loss is more robust to outliers than squared error, which is desirable given the high variance of tournament outcomes.
+
+**SVR / NuSVR** (scikit-learn) with RBF kernel. Prior to fitting, features are median-imputed and standardized:
+
+$$\tilde{x} = \frac{x - \mu_{\text{median}}}{\sigma}$$
+
+### 4.3 Ensemble
+
+Final predictions are the simple average of the three model outputs:
+
+$$\hat{y} = \frac{1}{3}\left(\hat{y}_{\text{XGB}} + \hat{y}_{\text{SVR}} + \hat{y}_{\text{NuSVR}}\right)$$
+
+### 4.4 Probability Calibration
+
+Raw ensemble scores are calibrated to $[0, 1]$ probabilities using a monotonic `UnivariateSpline` fit on out-of-fold predictions against binary win/loss outcomes. This corrects for distributional shift between the regression target and the probability scale required by the evaluation metric.
 
 ---
 
-## Key Variables
+## 5. Repository Structure
 
-| Variable | Description |
-|---|---|
-| `tourney_data` | Main modeling dataframe — one row per team-pair per direction |
-| `regular_data` | Source of season averages and Elo updates |
-| `models[season]` | Dict of XGBoost models, one per held-out season |
-| `spline_model` | Converts predicted margin to win probability |
-| `oof_preds` | Out-of-fold predictions used to fit the spline |
-| `X` | Submission dataframe with all features merged in |
-| `t = 25` | Clipping threshold for the spline (±25 point margin) |
+```
+Kaggele_ncaa-2026.ipynb   # Full pipeline: feature engineering, training, prediction, submission
+README.md
+```
+
+---
+
+## 6. Dependencies
+
+```
+pandas >= 1.5
+numpy >= 1.23
+scikit-learn >= 1.2
+xgboost >= 1.7
+statsmodels >= 0.14
+scipy >= 1.10
+```
+
+Install:
+
+```bash
+pip install pandas numpy scikit-learn xgboost statsmodels scipy
+```
+
+---
+
+## 7. Reproducing Results
+
+1. Download competition data from [Kaggle](https://www.kaggle.com/competitions/march-machine-learning-mania-2026) and set the data directory path in the notebook.
+2. Run **Kernel > Restart & Run All**.
+3. `submission.csv` is written to the working directory upon completion.
+
+---
+
+## 8. Submission Format
+
+```
+ID,Pred
+2026_1101_1102,0.623
+2026_1101_1103,0.441
+...
+```
+
+`ID` encodes `Season_LowerTeamID_HigherTeamID`. `Pred` is the probability that the lower-ID team wins.
