@@ -1,8 +1,14 @@
 # NCAA March Madness 2026 — Win Probability Prediction
 
+> 🏆 **Ranked 37th out of 3,462 teams (Top 1.1%) — Kaggle March Machine Learning Mania 2026**
+
 > **Kaggle Competition:** [March Machine Learning Mania 2026](https://www.kaggle.com/competitions/march-machine-learning-mania-2026)  
 > **Task:** Given any two teams, predict the probability that the lower-ID team wins. Covers both Men's and Women's NCAA tournaments.  
 > **Evaluation Metric:** Brier Score (lower is better) — penalizes confident wrong predictions more severely than uncertain ones.
+
+![Python](https://img.shields.io/badge/Python-3.10+-blue) ![XGBoost](https://img.shields.io/badge/XGBoost-gradient%20boosting-orange) ![scikit-learn](https://img.shields.io/badge/scikit--learn-calibration-green) ![Kaggle](https://img.shields.io/badge/Kaggle-Top%201.1%25-gold)
+
+**Tech Stack:** `Python` · `XGBoost` · `scikit-learn` · `statsmodels` · `ELO Rating System` · `Probability Calibration` · `Leave-One-Season-Out CV` · `GLM Quality Rating`
 
 ---
 
@@ -263,6 +269,7 @@ For each 2026 matchup, predictions are generated from all 22 season-specific cal
 | XGBoost OOF (point margin regression) | Mean MAE | 9.21 pts |
 | Logistic calibration OOF | Brier Score | 0.16549 |
 | **Final model (logistic + tail adjustment)** | **Brier Score** | **0.16543** |
+| 🏆 **Kaggle Leaderboard** | **Final Rank** | **37 / 3,462 (Top 1.1%)** |
 
 ### 7.2 Key Finding: Quality Rating Outperforms Seeds in 20/22 Seasons
 
@@ -301,8 +308,8 @@ March-Machine-Learning-Mania-2026_Odyssey/
 |   +-- NCAA version2.ipynb                   Adding GLM quality rating
 |   +-- NCAA version3.ipynb                   ELO rating experiments
 |   +-- NCAA version5.ipynb                   SVR / NuSVR ensemble experiments
-|   +-- Kaggele_ncaa-2026.ipynb               Early Stage 1 submission draft
-|   +-- Kaggele_ncaa-2026_2.ipynb             Revised submission draft
+|   +-- Kaggle_ncaa-2026.ipynb                Early Stage 1 submission draft
+|   +-- Kaggle_ncaa-2026_2.ipynb              Revised submission draft
 |
 +-- NCAA version7.ipynb                    <- MAIN: Current best model (this README)
 +-- K-ncaa-25Using2026Data_Ensemble.ipynb  <- XGB + SVM ensemble experiment
@@ -317,6 +324,18 @@ March-Machine-Learning-Mania-2026_Odyssey/
 ---
 
 ## 9. Reproduction Guide
+
+**Environment setup**
+
+```bash
+# Recommended: create a virtual environment first
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+pip install pandas numpy scikit-learn xgboost catboost statsmodels scipy matplotlib seaborn tqdm
+```
+
+> **Requirements:** Python >= 3.10 · RAM >= 8GB recommended (22-fold training loop)
 
 **Step 1 — Download data**
 
