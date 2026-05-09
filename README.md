@@ -301,22 +301,17 @@ Higher MAE in later seasons (2018, 2021, 2022) likely reflects increased parity 
 ```
 March-Machine-Learning-Mania-2026_Odyssey/
 |
-+-- data/                                  <- Raw Kaggle CSV files (not tracked in git)
-|
 +-- archive/                               <- Earlier experimental notebooks
 |   +-- NCAA version1.ipynb                   Seed-only baseline
 |   +-- NCAA version2.ipynb                   Adding GLM quality rating
 |   +-- NCAA version3.ipynb                   ELO rating experiments
 |   +-- NCAA version5.ipynb                   SVR / NuSVR ensemble experiments
-|   +-- Kaggle_ncaa-2026.ipynb                Early Stage 1 submission draft
-|   +-- Kaggle_ncaa-2026_2.ipynb              Revised submission draft
+|   +-- Kaggele_ncaa-2026_2.ipynb             Revised Stage 1 submission draft
+|
++-- data/                                  <- Raw Kaggle CSV files (not tracked in git)
 |
 +-- NCAA version7.ipynb                    <- MAIN: Current best model (this README)
-+-- K-ncaa-25Using2026Data_Ensemble.ipynb  <- XGB + SVM ensemble experiment
-+-- final-solution-ncaa-2025.ipynb         <- 2025 competition final submission
-|
-+-- predictions.csv                        <- Stage 2 submission file
-+-- predictions.xls                        <- Submission (Excel format)
++-- predictions.xls                        <- Stage 2 submission file
 +-- README.md
 +-- .gitignore
 ```
